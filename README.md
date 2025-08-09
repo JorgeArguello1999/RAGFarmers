@@ -30,7 +30,6 @@ RAGFormers/
 ├── models/         # NLP models and rules
 ├── data/           # Sample documents for testing
 ├── README.md
-└── requirements.txt
 
 ```
 

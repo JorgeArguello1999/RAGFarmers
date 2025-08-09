@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-Licitaciones — Demo Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#06b6d4; --danger:#ef4444; --ok:#10b981; --warn:#f59e0b;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Helvetica,Arial; margin:0; background:linear-gradient(180deg,#071126 0%, #081227 100%); color:#e6eef6}
+    .container{max-width:1200px; margin:28px auto; padding:20px}
+    header{display:flex; align-items:center; gap:16px}
+    .logo{width:56px; height:56px; background:linear-gradient(135deg,var(--accent),#7c3aed); border-radius:10px; display:flex;align-items:center;justify-content:center;font-weight:700}
+    h1{margin:0; font-size:20px}
+    p.lead{margin:4px 0 0; color:var(--muted); font-size:13px}
+
+    .layout{display:grid; grid-template-columns:300px 1fr; gap:18px; margin-top:18px}
+    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); padding:16px; border-radius:12px}
+
+    /* Sidebar */
+    .sidebar h3{margin:0 0 8px}
+    .upload-area{border:2px dashed rgba(255,255,255,0.04); padding:12px; border-radius:8px}
+    .file-list{margin-top:10px; max-height:220px; overflow:auto}
+    .file-item{display:flex; justify-content:space-between; gap:8px; padding:8px; border-radius:8px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); margin-bottom:8px}
+    .btn{background:var(--accent); color:#041025; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:600}
+    .small{font-size:13px}
+    .muted{color:var(--muted)}
+
+    /* Main */
+    .top-cards{display:flex; gap:12px; margin-bottom:12px}
+    .card{flex:1; padding:16px; border-radius:10px}
+    .card h4{margin:0 0 8px}
+    .metric{font-size:20px; font-weight:700}
+
+    .cols{display:grid; grid-template-columns: 1fr 420px; gap:12px}
+    table{width:100%; border-collapse:collapse}
+    th,td{padding:8px; text-align:left; border-bottom:1px dashed rgba(255,255,255,0.02)}
+
+    .risk{display:flex; gap:10px; align-items:center}
+    .dot{width:12px;height:12px;border-radius:50%}
+    .dot.ok{background:var(--ok)}
+    .dot.warn{background:var(--warn)}
+    .dot.danger{background:var(--danger)}
+
+    footer{margin-top:16px; color:var(--muted); font-size:13px}
+
+    /* responsive */
+    @media (max-width:900px){.layout{grid-template-columns:1fr} .cols{grid-template-columns:1fr} .sidebar{order:2}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">AI</div>
+      <div>
+        <h1>AI-Licitaciones — Demo Dashboard</h1>
+        <p class="lead">Simulated Streamlit-like interface: upload multiple documents, run automatic analysis, compare proposals and visualize risks.</p>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="panel sidebar">
+        <h3>Inputs & Controls</h3>
+        <div class="upload-area">
+          <label class="small muted">Upload PDF / TXT / JSON (demo only)</label>
+          <input id="files" type="file" multiple accept=".pdf,.txt,.json" style="width:100%; margin-top:8px">
+          <div class="file-list" id="fileList"></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="small muted">Processing options</label>
+          <div style="display:flex; gap:8px; margin-top:8px">
+            <select id="lang" style="padding:8px;border-radius:8px;background:#061222;color:#e6eef6;border:none">
+              <option value="es">Spanish (es)</option>
+              <option value="en">English (en)</option>
+            </select>
+            <button id="runBtn" class="btn">Run analysis</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="small muted">Export</label>
+          <div style="display:flex; gap:8px; margin-top:8px">
+            <button id="exportJson" class="btn" style="background:#7c3aed">Export JSON</button>
+            <button id="exportReport" class="btn" style="background:#06d6a0">Export Report</button>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <h4 style="margin:0">Parameters</h4>
+          <p class="muted small">Adjust thresholds used by the simulated analyzer.</p>
+          <label class="small muted">Risk sensitivity: <span id="sensVal">0.5</span></label>
+          <input id="sensitivity" type="range" min="0" max="1" step="0.05" value="0.5" style="width:100%">
+        </div>
+
+      </aside>
+
+      <main>
+        <div class="panel">
+          <div class="top-cards">
+            <div class="card" style="background:linear-gradient(180deg, rgba(6,182,212,0.08), rgba(6,182,212,0.03)); border:1px solid rgba(6,182,212,0.12)">
+              <h4>Overall Compliance</h4>
+              <div class="metric" id="overallCompliance">—%</div>
+              <div class="muted small">Aggregated legal & technical compliance</div>
+            </div>
+            <div class="card" style="background:linear-gradient(180deg, rgba(124,58,237,0.05), rgba(124,58,237,0.02)); border:1px solid rgba(124,58,237,0.06)">
+              <h4>Detected Risks</h4>
+              <div class="metric" id="riskCount">—</div>
+              <div class="muted small">Ambiguities, missing clauses, contradictions</div>
+            </div>
+            <div class="card" style="background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.03)">
+              <h4>Top Recommendation</h4>
+              <div id="topRec" class="muted small">—</div>
+            </div>
+          </div>
+
+          <div class="cols">
+            <section>
+              <h3 style="margin-top:0">Proposals Comparison</h3>
+              <div style="overflow:auto">
+                <table id="compareTable">
+                  <thead>
+                    <tr><th>Contractor</th><th>Compliance</th><th>Budget</th><th>Delivery</th><th>Risks</th></tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+
+              <h3 style="margin-top:16px">Visualization</h3>
+              <canvas id="barChart" height="150"></canvas>
+              <canvas id="radarChart" height="200" style="margin-top:12px"></canvas>
+            </section>
+
+            <aside class="panel" style="height:100%">
+              <h3 style="margin-top:0">Risk Details</h3>
+              <div id="riskList"></div>
+
+              <h3 style="margin-top:12px">Contractor Validation</h3>
+              <div id="rucList" class="muted small">No lookups yet. (Demo simulated)</div>
+            </aside>
+          </div>
+
+        </div>
+
+        <footer>
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <div>Demo built to simulate core Streamlit interactions for presentations.</div>
+            <div class="muted small">AI-Licitaciones • Non-commercial demo</div>
+          </div>
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    // Demo data generator (simulates NLP/OCR analysis results)
+    function fakeAnalyze(name, sensitivity){
+      // generate random metrics seeded by name
+      let seed = 0;
+      for(let i=0;i<name.length;i++) seed += name.charCodeAt(i);
+      const rand = (x)=>{seed = (seed*9301+49297)%233280; return (seed/233280)*x};
+
+      const compliance = Math.max(20, Math.round((rand(80) + (1-sensitivity*40))*1));
+      const budget = Math.round(rand(90000)+10000);
+      const delivery = Math.round(rand(120))+30; // days
+      const risks = Math.max(0, Math.round(6 - compliance/20 + rand(3)));
+      const issues = [];
+      if(compliance < 50) issues.push('Missing mandatory legal clause');
+      if(risks>3) issues.push('Ambiguous warranty terms');
+      if(delivery>100) issues.push('Unrealistic delivery time');
+      if(budget>90000) issues.push('High budget variance');
+
+      return {name, compliance, budget, delivery, risks, issues};
+    }
+
+    const fileListEl = document.getElementById('fileList');
+    const filesInput = document.getElementById('files');
+    const runBtn = document.getElementById('runBtn');
+    const compareTable = document.querySelector('#compareTable tbody');
+    const overallComplianceEl = document.getElementById('overallCompliance');
+    const riskCountEl = document.getElementById('riskCount');
+    const topRecEl = document.getElementById('topRec');
+    const riskListEl = document.getElementById('riskList');
+    const rucListEl = document.getElementById('rucList');
+    const exportJson = document.getElementById('exportJson');
+    const exportReport = document.getElementById('exportReport');
+    const sensitivity = document.getElementById('sensitivity');
+    const sensVal = document.getElementById('sensVal');
+
+    let uploaded = [];
+    let analyzed = [];
+
+    filesInput.addEventListener('change', (e)=>{
+      uploaded = Array.from(e.target.files).map(f=>({name:f.name, size:f.size, type:f.type}));
+      renderFileList();
+    });
+
+    function renderFileList(){
+      fileListEl.innerHTML = '';
+      if(uploaded.length===0){ fileListEl.innerHTML='<div class="muted small">No files selected</div>'; return }
+      uploaded.forEach((f, i)=>{
+        const div = document.createElement('div'); div.className='file-item';
+        div.innerHTML = `<div><strong>${f.name}</strong><div class='muted small'>${Math.round(f.size/1024)} KB</div></div><div><button class='btn' onclick='removeFile(${i})'>Remove</button></div>`;
+        fileListEl.appendChild(div);
+      })
+    }
+
+    window.removeFile = function(i){ uploaded.splice(i,1); filesInput.value=''; renderFileList(); }
+
+    runBtn.addEventListener('click', ()=>{
+      if(uploaded.length===0){ alert('Please upload sample files to simulate analysis.'); return }
+      analyzed = uploaded.map(f => fakeAnalyze(f.name, parseFloat(sensitivity.value)));
+      renderAnalysis();
+    });
+
+    sensitivity.addEventListener('input', ()=>{ sensVal.textContent = sensitivity.value; });
+
+    function renderAnalysis(){
+      // Table
+      compareTable.innerHTML = '';
+      analyzed.forEach(a=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><strong>${a.name}</strong></td><td>${a.compliance}%</td><td>$${a.budget.toLocaleString()}</td><td>${a.delivery} days</td><td><div class='risk'><span class='dot ${a.risks>3?'danger':a.risks>1?'warn':'ok'}'></span>${a.risks} issues</div></td>`;
+        compareTable.appendChild(tr);
+      });
+
+      // Metrics
+      const avg = Math.round(analyzed.reduce((s,x)=>s+x.compliance,0)/analyzed.length);
+      overallComplianceEl.textContent = avg + '%';
+      const totalRisks = analyzed.reduce((s,x)=>s+x.risks,0);
+      riskCountEl.textContent = totalRisks;
+      topRecEl.textContent = analyzed.sort((a,b)=>a.compliance-b.compliance)[0].issues[0] || 'All key clauses present.';
+
+      // Risk list
+      riskListEl.innerHTML = '';
+      analyzed.forEach(a=>{
+        a.issues.forEach(issue=>{
+          const div = document.createElement('div'); div.style.padding='8px'; div.style.borderBottom='1px dashed rgba(255,255,255,0.02)';
+          div.innerHTML = `<div style='display:flex; justify-content:space-between; align-items:center'><div><strong>${a.name}</strong><div class='muted small'>${issue}</div></div><div style='text-align:right'><div class='muted small'>Severity: ${a.risks}</div></div></div>`;
+          riskListEl.appendChild(div);
+        })
+      })
+
+      // Simulated RUC validation
+      rucListEl.innerHTML = analyzed.map(a=>`<div><strong>${a.name}</strong>: VALID (simulated)</div>`).join('');
+
+      // Charts
+      const labels = analyzed.map(a=>a.name);
+      const compliances = analyzed.map(a=>a.compliance);
+      const budgets = analyzed.map(a=>a.budget);
+
+      renderBarChart(labels, compliances);
+      renderRadarChart(labels, analyzed);
+    }
+
+    // Chart.js helpers
+    let barChart, radarChart;
+    function renderBarChart(labels, data){
+      const ctx = document.getElementById('barChart').getContext('2d');
+      if(barChart) barChart.destroy();
+      barChart = new Chart(ctx, {type:'bar', data:{labels, datasets:[{label:'Compliance %', data, borderWidth:1}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, max:100}}}})
+    }
+
+    function renderRadarChart(labels, items){
+      const ctx = document.getElementById('radarChart').getContext('2d');
+      if(radarChart) radarChart.destroy();
+      const datasets = items.map((it, idx)=>({label:it.name, data:[it.compliance, 100-it.risks*10, 100 - Math.min(100, it.budget/1500)], fill:true, borderWidth:1}));
+      radarChart = new Chart(ctx, {type:'radar', data:{labels:['Compliance','Risk Score Inverse','Budget Efficiency'], datasets}, options:{responsive:true}})
+    }
+
+    // Export JSON
+    exportJson.addEventListener('click', ()=>{
+      if(analyzed.length===0){ alert('No analysis to export'); return }
+      const blob = new Blob([JSON.stringify(analyzed, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'analysis.json'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // Export Report (simple HTML download)
+    exportReport.addEventListener('click', ()=>{
+      if(analyzed.length===0){ alert('No analysis to export'); return }
+      let html = `<html><head><meta charset='utf-8'><title>AI-Licitaciones Report</title></head><body><h1>AI-Licitaciones Report</h1>`;
+      html += `<h2>Summary</h2><p>Overall compliance: ${overallComplianceEl.textContent}</p>`;
+      html += `<h2>Details</h2>`;
+      analyzed.forEach(a=>{ html += `<h3>${a.name}</h3><ul><li>Compliance: ${a.compliance}%</li><li>Budget: $${a.budget}</li><li>Delivery: ${a.delivery} days</li><li>Risks: ${a.risks}</li>`; if(a.issues.length) { html += `<li>Issues:<ul>`+a.issues.map(i=>`<li>${i}</li>`).join('')+`</ul></li>` } html += `</ul>` });
+      html += `</body></html>`;
+      const blob = new Blob([html], {type:'text/html'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'report.html'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // Initialize
+    renderFileList();
+  </script>
+</body>
+</html>
