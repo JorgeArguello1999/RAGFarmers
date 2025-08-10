@@ -13,21 +13,24 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-OUTPUT_DIR = "extracted_markdown_files"
+# Temporary directory for PDFs
+OUTPUT_DIR = "extracted_markdown_files_temp"
+# Redis key pattern for PDF metadata
 METADATA_KEY_PATTERN = "pdf:meta:*"
+# Polling interval in seconds to check for new keys
 POLLING_INTERVAL = 5
-LOCK_TIMEOUT = 600  # 10 minutes in seconds
+# Lock timeout in seconds (10 minutes)
+LOCK_TIMEOUT = 600
 
-# Ensure the output directory exists
+# Ensure the temporary output directory exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-logger.info(f"Output directory '{OUTPUT_DIR}' ensured to exist.")
+logger.info(f"Temporary directory '{OUTPUT_DIR}' ensured to exist.")
 
 async def acquire_lock(lock_key: str, timeout: int) -> bool:
     """
     Attempts to acquire a lock in Redis using SETNX with a timeout.
     Returns True if the lock was acquired, False otherwise.
     """
-    # Use redis_client.set with nx=True and ex=timeout for atomic lock acquisition
     return await redis_client.set(lock_key, "locked", nx=True, ex=timeout)
 
 async def release_lock(lock_key: str):
@@ -38,7 +41,7 @@ async def release_lock(lock_key: str):
 
 async def process_pdf_from_redis(file_id: str):
     """
-    Fetches a PDF from Redis, converts it to Markdown, and saves it to a file.
+    Fetches a PDF from Redis, converts it to Markdown, and saves it to Redis.
     It uses a Redis lock to ensure only one worker processes the file.
     """
     lock_key = f"lock:ocr:{file_id}"
@@ -55,6 +58,7 @@ async def process_pdf_from_redis(file_id: str):
     try:
         content_key = f"pdf:content:{file_id}"
         meta_key = f"pdf:meta:{file_id}"
+        markdown_key = f"pdf:markdown:{file_id}"
         
         # 2. Fetch PDF content and metadata
         pdf_content = await redis_client.get(content_key)
@@ -69,6 +73,7 @@ async def process_pdf_from_redis(file_id: str):
         logger.info(f"Fetched file '{original_filename}' from Redis.")
         
         # 3. Save the PDF content to a temporary file for OCR
+        # The extract_pdf function expects a file path
         temp_pdf_path = os.path.join(OUTPUT_DIR, f"{file_id}.pdf")
         with open(temp_pdf_path, 'wb') as f:
             f.write(pdf_content)
@@ -77,22 +82,17 @@ async def process_pdf_from_redis(file_id: str):
         # 4. Use the OCR service to convert the PDF to Markdown
         markdown_content = extract_pdf(dir=temp_pdf_path)
         
-        # 5. Save the Markdown content to a file
-        markdown_filename = f"{os.path.splitext(original_filename)[0]}_{file_id}.md"
-        markdown_path = os.path.join(OUTPUT_DIR, markdown_filename)
-        with open(markdown_path, 'w', encoding='utf-8') as f:
-            f.write(markdown_content)
+        # 5. --- NOW WE SAVE THE MARKDOWN DIRECTLY TO REDIS ---
+        await redis_client.set(markdown_key, markdown_content.encode('utf-8'))
+        logger.info(f"Successfully saved Markdown to Redis with key: {markdown_key}")
         
-        logger.info(f"Successfully converted and saved Markdown to: {markdown_path}")
-        
-        # 6. --- SUCCESSFUL COMPLETION: REMOVE THE ORIGINAL FILES FROM REDIS ---
+        # 6. --- SUCCESSFUL COMPLETION: REMOVE THE ORIGINAL PDF FILES FROM REDIS ---
         await redis_client.delete(content_key)
         await redis_client.delete(meta_key)
         logger.info(f"Successfully deleted original PDF and metadata from Redis for file ID: {file_id}")
 
     except Exception as e:
         logger.error(f"Error processing file ID {file_id}: {e}")
-        # The lock will expire eventually, but we can't remove the original files
     finally:
         # 7. Clean up the temporary PDF file and release the lock
         if temp_pdf_path and os.path.exists(temp_pdf_path):
