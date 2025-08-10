@@ -12,7 +12,6 @@ backend/
 ├── Dockerfile            # Dockerfile for Redis service
 ├── main.py               # FastAPI application entry point
 ├── requirements.txt      # Python dependencies
-├── selenium.ipynb        # Jupyter notebook for Selenium-based scraping (demo/utility)
 ├── data/                 # Directory for uploaded files (created at runtime)
 ├── database/
 │   ├── redis.conf        # Redis configuration file
