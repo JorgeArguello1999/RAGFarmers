@@ -1,144 +1,141 @@
 import os
 import logging
-from pathlib import Path
+import uuid 
 from typing import List
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
+from database.redis import save_pdf_to_redis, redis_client
 from schemas.File import FileUploadError
 
 from utils.file import sanitize_filename
-from utils.file import validate_pdf_file, save_file_async
+from utils.file import validate_pdf_file
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-# Constants
-UPLOAD_DIRECTORY = Path(os.getenv("UPLOAD_DIRECTORY", "data"))
-
-# Ensure upload directory exists
-UPLOAD_DIRECTORY.mkdir(parents=True, exist_ok=True)
 
 # Router for file upload operations
 router = APIRouter(prefix="/files", tags=["Files"])
 
 
-
 @router.post(
-    "/upload-pdfs",
-    summary="Upload one or multiple PDF files",
+    "/upload-pdfs", 
+    summary="Upload one or multiple PDF files to Redis with a unique ID",
     response_model=dict,
     status_code=status.HTTP_201_CREATED,
     responses={
         201: {
-            "description": "Files uploaded successfully",
+            "description": "Files were successfully stored in Redis.",
             "content": {
                 "application/json": {
                     "example": {
-                        "message": "Successfully uploaded 2 PDF files",
-                        "uploaded_files": ["document1.pdf", "document2.pdf"],
+                        "message": "Successfully stored 2 PDF files in Redis.",
+                        "uploaded_files": [
+                            {"file_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "original_filename": "document1.pdf"},
+                            {"file_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e", "original_filename": "report.pdf"}
+                        ],
                         "total_files": 2
                     }
                 }
             }
         },
-        400: {"description": "Invalid file type or missing filename"},
-        413: {"description": "File too large"},
-        500: {"description": "Internal server error during file upload"}
+        400: {"description": "Invalid file type or missing file."},
+        500: {"description": "Internal server error during file upload."}
     }
 )
-async def upload_multiple_pdfs(
-    files: List[UploadFile] = File(..., description="List of PDF files to upload")
+async def upload_multiple_pdfs_to_redis(
+    files: List[UploadFile] = File(..., description="List of PDF files to upload.")
 ) -> dict:
     """
-    Upload one or more PDF files to the server.
+    Uploads one or more PDF files, assigns a unique ID to each, and stores them in Redis.
 
-    This endpoint is designed to be efficient and non-blocking:
-    - **Asynchronous processing**: Frees the main server thread to handle other requests
-    - **Chunked reading**: Reads and writes files in chunks to handle large files without exhausting RAM
-    - **Type validation**: Rejects files that don't have 'application/pdf' Content-Type
-    - **Size validation**: Prevents upload of files exceeding maximum size limit
-    - **Security**: Sanitizes filenames to prevent path traversal attacks
+    This endpoint operates asynchronously and handles files efficiently:
+    - **Unique ID**: Each file is assigned a UUID v4 for robust identification.
+    - **Atomic Operations**: File content and metadata are stored in a single Redis transaction.
+    - **Metadata Storage**: Saves the original filename and content type alongside the file.
+    - **Security**: Sanitizes filenames before storing them as metadata.
 
     **Returns**:
-    - JSON object confirming the number of uploaded files and their names
-    - 400 error if any file is not a valid PDF or missing filename
-    - 413 error if any file exceeds size limit
-    - 500 error if there's an issue saving any file
+    - A JSON object with the unique IDs and original filenames of the stored files.
+    - 400 error for invalid files.
+    - 500 error if storage fails.
     """
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No files provided"
+            detail="No files were provided."
         )
 
-    uploaded_filenames = []
+    uploaded_files_info = []
     failed_uploads = []
 
     for file in files:
         try:
-            # Validate file
+            # 1. Validate that the file is a PDF
             await validate_pdf_file(file)
-            
-            # Sanitize filename
+
+            # 2. Generate a unique identifier for the file
+            file_id = str(uuid.uuid4())
             sanitized_filename = sanitize_filename(file.filename)
-            destination_path = UPLOAD_DIRECTORY / sanitized_filename
+
+            # 3. Read file content
+            # The file must be read into memory to be sent to Redis
+            await file.seek(0)
+            file_content = await file.read()
+
+            # 4. Prepare metadata
+            metadata = {
+                "id": file_id,
+                "original_filename": sanitized_filename,
+                "content_type": file.content_type,
+                "size_bytes": len(file_content)
+            }
+
+            # 5. Save content and metadata to Redis using the new function
+            await save_pdf_to_redis(file_id, file_content, metadata)
             
-            # Handle filename conflicts by appending a number
-            counter = 1
-            original_stem = destination_path.stem
-            original_suffix = destination_path.suffix
-            
-            while destination_path.exists():
-                new_filename = f"{original_stem}_{counter}{original_suffix}"
-                destination_path = UPLOAD_DIRECTORY / new_filename
-                counter += 1
-            
-            # Save file
-            await save_file_async(file, destination_path)
-            uploaded_filenames.append(destination_path.name)
-            
+            uploaded_files_info.append({"file_id": file_id, "original_filename": sanitized_filename})
+
         except HTTPException:
-            # Re-raise HTTP exceptions (validation errors)
+            # Re-raise validation errors
             raise
         except FileUploadError as e:
-            # Handle file saving errors
-            failed_uploads.append({"filename": file.filename, "error": str(e)})
-            logger.error(f"Upload failed for {file.filename}: {str(e)}")
+            # Handle specific Redis upload errors
+            error_msg = f"Error storing file '{file.filename}' in Redis: {str(e)}"
+            failed_uploads.append({"filename": file.filename, "error": error_msg})
+            logger.error(error_msg)
         except Exception as e:
-            # Handle unexpected errors
-            error_msg = f"Unexpected error processing file '{file.filename}': {str(e)}"
+            # Handle any other unexpected errors
+            error_msg = f"An unexpected error occurred with file '{file.filename}': {str(e)}"
             failed_uploads.append({"filename": file.filename, "error": error_msg})
             logger.error(error_msg)
         finally:
-            # Always close the file to free resources
-            if hasattr(file, 'file'):
-                await file.close()
+            # Always close the file to release resources
+            await file.close()
 
-    # If some files failed but others succeeded, return partial success
-    if failed_uploads and uploaded_filenames:
-        logger.warning(f"Partial upload success: {len(uploaded_filenames)} succeeded, {len(failed_uploads)} failed")
+    # Handle partial success
+    if failed_uploads and uploaded_files_info:
+        logger.warning(f"Partial upload: {len(uploaded_files_info)} succeeded, {len(failed_uploads)} failed.")
         return {
-            "message": f"Partially successful: {len(uploaded_filenames)} files uploaded, {len(failed_uploads)} failed",
-            "uploaded_files": uploaded_filenames,
-            "failed_uploads": failed_uploads,
-            "total_files": len(uploaded_filenames)
+            "message": f"Partially successful: {len(uploaded_files_info)} files stored, {len(failed_uploads)} failed.",
+            "uploaded_files": uploaded_files_info,
+            "failed_uploads": failed_uploads
         }
-    
-    # If all files failed
+
+    # Handle total failure
     if failed_uploads:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
-                "message": "All file uploads failed",
+                "message": "All file uploads to Redis failed.",
                 "failed_uploads": failed_uploads
             }
         )
 
-    # All files succeeded
-    logger.info(f"Successfully uploaded {len(uploaded_filenames)} files")
+    # Handle total success
+    logger.info(f"Successfully stored {len(uploaded_files_info)} files in Redis.")
     return {
-        "message": f"Successfully uploaded {len(uploaded_filenames)} PDF files",
-        "uploaded_files": uploaded_filenames,
-        "total_files": len(uploaded_filenames)
+        "message": f"Successfully stored {len(uploaded_files_info)} PDF files in Redis.",
+        "uploaded_files": uploaded_files_info,
+        "total_files": len(uploaded_files_info)
     }
