@@ -8,6 +8,7 @@ load_dotenv()
 
 from routers.upload import router as upload_router
 from routers.home import router as home_router
+from routers.chat import router as chat_router 
 
 # Directory where uploaded files will be stored
 UPLOAD_DIRECTORY = getenv("UPLOAD_DIRECTORY", "data")
@@ -36,3 +37,4 @@ app = FastAPI(
 # Routes
 app.include_router(home_router, prefix="/api/v1", tags=["Home"])
 app.include_router(upload_router, prefix="/api/v1", tags=["Files"])
+app.include_router(chat_router, prefix="/api/v1", tags=["Chat"]) 
