@@ -8,10 +8,10 @@ from fastapi import APIRouter
 logger = logging.getLogger(__name__)
 
 # Router for file upload operations
-router = APIRouter(prefix="/", tags=["Home"])
+router = APIRouter(prefix="", tags=["Home"])
 
 # Routes at the root level
-@router.get("", tags=["General"])
+@router.get("", tags=["Home"])
 async def root():
     """
     Check if the server is running

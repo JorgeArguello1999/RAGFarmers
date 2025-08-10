@@ -34,5 +34,5 @@ app = FastAPI(
 )
 
 # Routes
+app.include_router(home_router, prefix="/api/v1", tags=["Home"])
 app.include_router(upload_router, prefix="/api/v1", tags=["Files"])
-app.include_router(home_router, prefix="/", tags=["Home"])
