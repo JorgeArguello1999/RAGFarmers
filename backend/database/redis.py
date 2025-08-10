@@ -47,24 +47,3 @@ async def save_pdf_to_redis(file_id: str, file_content: bytes, metadata: Dict):
             await pipe.execute()
     except Exception as e:
         raise FileUploadError(f"Error saving file to Redis: {str(e)}")
-
-
-async def save_file_to_redis(file: UploadFile, redis_key: str):
-    """
-    Save a file to Redis under the specified key.
-    """
-    try:
-        file_data = b""
-        while chunk := await file.read(1024 * 1024):  # 1MB per chunk
-            file_data += chunk
-
-        await redis_client.set(redis_key, file_data)
-
-    except Exception as e:
-        raise FileUploadError(f"Error saving file to Redis: {str(e)}")
-
-async def key_exists(redis_key: str) -> bool:
-    """
-    Check if a key exists in Redis.
-    """
-    return await redis_client.exists(redis_key)
