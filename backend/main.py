@@ -7,6 +7,7 @@ from os import getenv
 load_dotenv()
 
 from routers.upload import router as upload_router
+from routers.home import router as home_router
 
 # Directory where uploaded files will be stored
 UPLOAD_DIRECTORY = getenv("UPLOAD_DIRECTORY", "data")
@@ -20,7 +21,7 @@ async def lifespan(app: FastAPI):
     """
     # Initialize resources here if needed
     Path(UPLOAD_DIRECTORY).mkdir(parents=True, exist_ok=True)
-    print(f"Directorio de subida asegurado: {UPLOAD_DIRECTORY}")
+    print(f"Upload file: {UPLOAD_DIRECTORY}")
 
     yield  # This is where the application runs
 
@@ -34,3 +35,4 @@ app = FastAPI(
 
 # Routes
 app.include_router(upload_router, prefix="/api/v1", tags=["Files"])
+app.include_router(home_router, prefix="/", tags=["Home"])

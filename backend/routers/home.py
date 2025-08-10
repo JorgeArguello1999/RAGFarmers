@@ -1,8 +1,20 @@
-# --- Ruta de ejemplo para demostrar que el servidor no está bloqueado ---
-@app.get("/", tags=["General"])
+import os
+import logging
+
+from pathlib import Path
+from fastapi import APIRouter
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Router for file upload operations
+router = APIRouter(prefix="/", tags=["Home"])
+
+# Routes at the root level
+@router.get("", tags=["General"])
 async def root():
     """
-    Ruta raíz para verificar que el servidor está respondiendo.
+    Check if the server is running
     """
     return {"status": "El servidor está en línea y respondiendo."}
 
