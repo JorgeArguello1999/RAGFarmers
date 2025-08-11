@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 import asyncio
 import redis.asyncio as redis
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from langchain_core.messages import HumanMessage
 from langchain.chat_models import init_chat_model
@@ -30,6 +31,8 @@ os.chdir(MAIN_PATH.parent)
 workflow = StateGraph(state_schema=MessagesState)
 model = init_chat_model("gpt-4o-mini", model_provider="openai", temperature=0)
 
+app = FastAPI()
+
 async def get_all_markdown_docs():
     """Obtiene todos los contenidos Markdown desde Redis y los concatena."""
     md_keys = await redis_client.keys("md:content:*")
@@ -48,16 +51,21 @@ async def get_all_markdown_docs():
     markdown_unido = "\n\n---\n\n".join(contenido_total)
     return markdown_unido, nombres
 
-async def main():
+# Inicializar el modelo y flujo una vez
+@app.on_event("startup")
+async def startup_event():
+    global app_llm, config, markdown_unido_global
+
     markdown_unido, nombres = await get_all_markdown_docs()
     if not markdown_unido:
         print("No hay documentos Markdown en Redis.")
+        app_llm = None
         return
     
     print(f"Documentos cargados desde Redis: {', '.join(nombres)}")
     print(f"Total de documentos: {len(nombres)}")
-    
-    # Prompt con todos los documentos juntos
+    markdown_unido_global = markdown_unido
+
     prompt_template = ChatPromptTemplate.from_messages(
         [
             ("system", ContextoGeneral),
@@ -74,26 +82,39 @@ async def main():
     workflow.add_edge(START, "model")
     workflow.add_node("model", call_model)
     memory = MemorySaver()
-    app = workflow.compile(checkpointer=memory)
+    app_llm = workflow.compile(checkpointer=memory)
     config = {"configurable": {"thread_id": "conv_unica"}}
 
-    # Primera pregunta al LLM
-    input_messages = [HumanMessage(PromptExtraccionPliegos(markdown_unido))]
-    print("\nLLM procesando solicitud inicial...")
-    output = app.invoke({"messages": input_messages}, config)
-    print(output["messages"][-1].content)
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
 
-    # Conversación continua
-    while True:
-        pregunta = input('\n¿Qué deseas saber sobre los documentos? (o "salir" para terminar): ')
-        if pregunta.lower() == "salir":
-            break
-        input_messages.append(HumanMessage(content="vuelve a leer todos los documentos, responde: " + pregunta))
-        output_i = app.invoke({"messages": input_messages}, config)
-        print(output_i["messages"][-1].content)
+    if not app_llm:
+        await websocket.send_text("Error: no hay documentos cargados.")
+        await websocket.close()
+        return
 
-if __name__ == "__main__":
+    input_messages = []
+
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nEjecución interrumpida por el usuario.")
+        while True:
+            pregunta = await websocket.receive_text()
+
+            if pregunta.lower() == "salir":
+                await websocket.send_text("Conexión cerrada.")
+                await websocket.close()
+                break
+
+            if not input_messages:
+                # Primer mensaje con el prompt inicial
+                input_messages.append(HumanMessage(PromptExtraccionPliegos(markdown_unido_global)))
+                output = app_llm.invoke({"messages": input_messages}, config)
+                await websocket.send_text(output["messages"][-1].content)
+            else:
+                # Mensajes subsecuentes
+                input_messages.append(HumanMessage(content="vuelve a leer todos los documentos, responde: " + pregunta))
+                output_i = app_llm.invoke({"messages": input_messages}, config)
+                await websocket.send_text(output_i["messages"][-1].content)
+
+    except WebSocketDisconnect:
+        print("Cliente desconectado.")
