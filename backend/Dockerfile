@@ -1,15 +1,22 @@
-# Redis Dockerfile 
-FROM redis:7.2
+# FastAPI Backend Dockerfile
+FROM python:3.11-slim
 
-# Define environment variables for Redis configuration
-ENV REDIS_PASSWORD=devpass123
-ENV REDIS_PORT=6379
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Copy the Redis configuration file
-COPY database/redis.conf /usr/local/etc/redis/redis.conf
+# Set work directory
+WORKDIR /app
 
-# Expose the Redis port
-EXPOSE ${REDIS_PORT}
+# Install dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Run Redis server with the specified configuration
-CMD ["redis-server", "/usr/local/etc/redis/redis.conf"]
+# Copy application code
+COPY . .
+
+# Expose FastAPI port
+EXPOSE 8000
+
+# Command to run the FastAPI app
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
