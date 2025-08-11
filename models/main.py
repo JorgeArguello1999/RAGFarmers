@@ -1,3 +1,4 @@
+
 import os
 import sys
 import asyncio
@@ -36,7 +37,6 @@ except (AttributeError, FileNotFoundError):
 # -------------------
 # LLM y flujo
 # -------------------
-workflow = StateGraph(state_schema=MessagesState)
 # Load environment variables
 load_dotenv()
 model = init_chat_model("gpt-4o-mini", model_provider="openai", temperature=0)
@@ -98,20 +98,16 @@ def call_model(state: MessagesState):
     return {"messages": response}
 
 
-# -------------------
-# FastAPI Endpoints
-# -------------------
-@app.on_event("startup")
-async def startup_event():
+async def initialize_llm_workflow():
     """
-    Initializes the LLM and LangGraph workflow on application startup.
-    This replaces the logic from the original `startup_event`.
+    Initializes the LangGraph workflow with the latest documents.
     """
     global app_llm, markdown_unido_global
 
     markdown_unido, nombres = await get_all_markdown_docs()
     if not markdown_unido:
         print("No hay documentos Markdown en Redis.")
+        markdown_unido_global = None
         app_llm = None
         return
     
@@ -119,19 +115,50 @@ async def startup_event():
     print(f"Total de documentos: {len(nombres)}")
     markdown_unido_global = markdown_unido
 
+    # Refactorizado: Se crea una nueva instancia de StateGraph cada vez.
+    workflow = StateGraph(state_schema=MessagesState)
     workflow.add_edge(START, "model")
     workflow.add_node("model", call_model)
-    # The MemorySaver is already created globally
     app_llm = workflow.compile(checkpointer=memory)
 
-    # Initializing the graph with an empty state to ensure the checkpointer
-    # is ready for the first request.
+    # Initializing the graph with an empty state
     try:
-        app_llm.invoke({"messages": []}, config)
+        # Check if the thread exists to avoid invoking the graph unnecessarily
+        state = await app_llm.get_state(config)
+        if not state:
+            # If no history exists, initialize it with a clean state.
+            await app_llm.acreate_checkpoint(config, {"messages": []})
+        else:
+            print("Conversation history found. Not resetting on reload.")
     except Exception as e:
         print(f"Error during initial graph invocation: {e}")
-        # This error might occur if the model requires input. It's safe to ignore
-        # and let the first real request handle it.
+
+# -------------------
+# FastAPI Endpoints
+# -------------------
+@app.on_event("startup")
+async def startup_event():
+    """
+    Initializes the LLM and LangGraph workflow on application startup.
+    """
+    await initialize_llm_workflow()
+
+@app.post("/reload-docs", summary="Reload all Markdown documents from Redis")
+async def reload_documents() -> Dict[str, str]:
+    """
+    Recarga los documentos Markdown desde Redis y actualiza el contexto del LLM.
+    """
+    try:
+        await initialize_llm_workflow()
+        if app_llm:
+            return {"status": "success", "message": "Successfully reloaded documents. The new documents are now part of the LLM's context."}
+        else:
+            return {"status": "success", "message": "No documents found to load. Context reset."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while reloading documents: {str(e)}"
+        )
 
 @app.post("/chat", summary="Send a message and get an assistant response")
 async def chat_with_assistant(request: MessageRequest) -> Dict[str, str]:
@@ -148,6 +175,9 @@ async def chat_with_assistant(request: MessageRequest) -> Dict[str, str]:
     try:
         # LangGraph handles the conversation state using the checkpointer
         user_message = HumanMessage(content=request.message)
+        
+        # We need to get the current state and append the new message to it.
+        # LangGraph's checkpointer handles the state update automatically.
         output = await app_llm.ainvoke({"messages": [user_message]}, config)
         
         # Extract the last message from the assistant
@@ -174,7 +204,8 @@ async def get_chat_history() -> List[HistoryMessage]:
         )
 
     try:
-        state = app_llm.get_state(config)
+        # Use `aget_state` for asynchronous state retrieval
+        state = await app_llm.aget_state(config)
         if not state:
             return []
         
@@ -204,8 +235,7 @@ async def reset_conversation() -> Dict[str, str]:
         )
     
     try:
-        # This is a bit of a workaround to clear the in-memory state.
-        # It's an important step for development and testing.
+        # This is the correct way to clear the state using LangGraph's checkpointer
         await app_llm.checkpointer.put(
             config=config["configurable"],
             checkpoint={
@@ -222,4 +252,3 @@ async def reset_conversation() -> Dict[str, str]:
             status_code=500,
             detail=f"An error occurred while resetting the conversation: {str(e)}"
         )
-
