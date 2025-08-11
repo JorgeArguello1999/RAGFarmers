@@ -4,9 +4,11 @@ load_dotenv()
 import asyncio
 import os
 import logging
-from ocr import extract_pdf
-from redis_db import redis_client, REDIS_HOST, REDIS_PORT
 from typing import Optional
+
+from ocr import extract_pdf
+from redis_db import redis_client, REDIS_HOST, REDIS_PORT, set_processing_status
+from redis_db import get_processing_status
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -60,7 +62,6 @@ async def process_pdf_from_redis(file_id: str):
     try:
         content_key = f"pdf:content:{file_id}"
         meta_key = f"pdf:meta:{file_id}"
-        # Markdown is now stored as a Redis Hash
         markdown_hash_key = f"md:content:{file_id}"
         
         # 2. Fetch PDF content and metadata
@@ -84,7 +85,7 @@ async def process_pdf_from_redis(file_id: str):
         # 4. Use the OCR service to convert the PDF to Markdown
         markdown_content = extract_pdf(dir=temp_pdf_path)
         
-        # 5. --- SAVE THE MARKDOWN AND METADATA TO A REDIS HASH ---
+        # 5. Save the Markdown and metadata to a Redis Hash
         markdown_data = {
             "content": markdown_content.encode('utf-8'),
             "original_filename": original_filename.encode('utf-8')
@@ -92,11 +93,11 @@ async def process_pdf_from_redis(file_id: str):
         await redis_client.hset(markdown_hash_key, mapping=markdown_data)
         logger.info(f"Successfully saved Markdown and metadata to Redis Hash: {markdown_hash_key}")
 
-        # 6. --- CREATE/UPDATE THE FILENAME INDEX ---
+        # 6. Create/update the filename index
         await redis_client.hset(FILENAME_INDEX_KEY, original_filename, file_id)
         logger.info(f"Updated filename index for '{original_filename}' -> '{file_id}'")
 
-        # 7. --- SUCCESSFUL COMPLETION: REMOVE THE ORIGINAL PDF FILES FROM REDIS ---
+        # 7. Successful completion: Remove the original PDF files from Redis
         await redis_client.delete(content_key)
         await redis_client.delete(meta_key)
         logger.info(f"Successfully deleted original PDF and metadata from Redis for file ID: {file_id}")
@@ -115,17 +116,38 @@ async def process_pdf_from_redis(file_id: str):
 async def redis_listener():
     """
     Main asynchronous function that listens for new PDF files in Redis.
+    It checks for unprocessed files and, after processing, verifies if any
+    files remain to decide the final processing status.
     """
     logger.info(f"Starting Redis listener service. Connecting to Redis at {REDIS_HOST}:{REDIS_PORT}...")
     
     while True:
         try:
+            # 1. Check for any pending files
             keys = await redis_client.keys(METADATA_KEY_PATTERN)
             
-            for key in keys:
-                file_id = key.decode('utf-8').split(':')[-1]
-                asyncio.create_task(process_pdf_from_redis(file_id))
-            
+            if keys:
+                logger.info(f"Found {len(keys)} pending files to process.")
+                # Si hay archivos, el estado ya debe ser False, pero lo confirmamos.
+                if await get_processing_status():
+                    await set_processing_status(False)
+                    logger.info("Processing status manually set to False as new files were found.")
+
+                tasks = [process_pdf_from_redis(key.decode('utf-8').split(':')[-1]) for key in keys]
+                await asyncio.gather(*tasks)
+
+                # 2. After processing, re-check if there are any files left
+                remaining_keys = await redis_client.keys(METADATA_KEY_PATTERN)
+                if not remaining_keys and not await get_processing_status():
+                    # If no keys are left and the status is still False, the work is done.
+                    await set_processing_status(True)
+                    logger.info("All files processed. Setting processing status to True.")
+            else:
+                # If there are no keys to begin with, ensure the status is True
+                if not await get_processing_status():
+                    await set_processing_status(True)
+                    logger.info("No files found. Setting processing status to True.")
+                
             await asyncio.sleep(POLLING_INTERVAL)
             
         except Exception as e:

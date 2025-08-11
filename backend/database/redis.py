@@ -47,3 +47,18 @@ async def save_pdf_to_redis(file_id: str, file_content: bytes, metadata: Dict):
             await pipe.execute()
     except Exception as e:
         raise FileUploadError(f"Error saving file to Redis: {str(e)}")
+
+async def set_processing_status(is_processing: bool):
+    """
+    Sets the global processing status in Redis.
+    """
+    await redis_client.set("processing_status", str(is_processing))
+
+async def get_processing_status() -> bool:
+    """
+    Gets the global processing status from Redis.
+    """
+    status_bytes = await redis_client.get("processing_status")
+    if status_bytes is None:
+        return False  # Default to False if the key doesn't exist
+    return status_bytes.decode('utf-8').lower() == 'true'
