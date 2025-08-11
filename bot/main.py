@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 OUTPUT_DIR = "extracted_markdown_files_temp"
 # Redis key pattern for PDF metadata
 METADATA_KEY_PATTERN = "pdf:meta:*"
+# Key for the filename index (maps filename to file_id)
+FILENAME_INDEX_KEY = "md:filename_to_id"
 # Polling interval in seconds to check for new keys
 POLLING_INTERVAL = 5
 # Lock timeout in seconds (10 minutes)
@@ -41,8 +43,8 @@ async def release_lock(lock_key: str):
 
 async def process_pdf_from_redis(file_id: str):
     """
-    Fetches a PDF from Redis, converts it to Markdown, and saves it to Redis.
-    It uses a Redis lock to ensure only one worker processes the file.
+    Fetches a PDF from Redis, converts it to Markdown, and saves it to Redis
+    with its metadata. It uses a Redis lock to ensure only one worker processes the file.
     """
     lock_key = f"lock:ocr:{file_id}"
     
@@ -58,7 +60,8 @@ async def process_pdf_from_redis(file_id: str):
     try:
         content_key = f"pdf:content:{file_id}"
         meta_key = f"pdf:meta:{file_id}"
-        markdown_key = f"pdf:markdown:{file_id}"
+        # Markdown is now stored as a Redis Hash
+        markdown_hash_key = f"md:content:{file_id}"
         
         # 2. Fetch PDF content and metadata
         pdf_content = await redis_client.get(content_key)
@@ -73,7 +76,6 @@ async def process_pdf_from_redis(file_id: str):
         logger.info(f"Fetched file '{original_filename}' from Redis.")
         
         # 3. Save the PDF content to a temporary file for OCR
-        # The extract_pdf function expects a file path
         temp_pdf_path = os.path.join(OUTPUT_DIR, f"{file_id}.pdf")
         with open(temp_pdf_path, 'wb') as f:
             f.write(pdf_content)
@@ -82,11 +84,19 @@ async def process_pdf_from_redis(file_id: str):
         # 4. Use the OCR service to convert the PDF to Markdown
         markdown_content = extract_pdf(dir=temp_pdf_path)
         
-        # 5. --- NOW WE SAVE THE MARKDOWN DIRECTLY TO REDIS ---
-        await redis_client.set(markdown_key, markdown_content.encode('utf-8'))
-        logger.info(f"Successfully saved Markdown to Redis with key: {markdown_key}")
-        
-        # 6. --- SUCCESSFUL COMPLETION: REMOVE THE ORIGINAL PDF FILES FROM REDIS ---
+        # 5. --- SAVE THE MARKDOWN AND METADATA TO A REDIS HASH ---
+        markdown_data = {
+            "content": markdown_content.encode('utf-8'),
+            "original_filename": original_filename.encode('utf-8')
+        }
+        await redis_client.hset(markdown_hash_key, mapping=markdown_data)
+        logger.info(f"Successfully saved Markdown and metadata to Redis Hash: {markdown_hash_key}")
+
+        # 6. --- CREATE/UPDATE THE FILENAME INDEX ---
+        await redis_client.hset(FILENAME_INDEX_KEY, original_filename, file_id)
+        logger.info(f"Updated filename index for '{original_filename}' -> '{file_id}'")
+
+        # 7. --- SUCCESSFUL COMPLETION: REMOVE THE ORIGINAL PDF FILES FROM REDIS ---
         await redis_client.delete(content_key)
         await redis_client.delete(meta_key)
         logger.info(f"Successfully deleted original PDF and metadata from Redis for file ID: {file_id}")
@@ -94,7 +104,7 @@ async def process_pdf_from_redis(file_id: str):
     except Exception as e:
         logger.error(f"Error processing file ID {file_id}: {e}")
     finally:
-        # 7. Clean up the temporary PDF file and release the lock
+        # 8. Clean up the temporary PDF file and release the lock
         if temp_pdf_path and os.path.exists(temp_pdf_path):
             os.remove(temp_pdf_path)
             logger.info(f"Cleaned up temporary PDF file: {temp_pdf_path}")
@@ -114,7 +124,6 @@ async def redis_listener():
             
             for key in keys:
                 file_id = key.decode('utf-8').split(':')[-1]
-                # A file key exists, so we try to process it
                 asyncio.create_task(process_pdf_from_redis(file_id))
             
             await asyncio.sleep(POLLING_INTERVAL)
