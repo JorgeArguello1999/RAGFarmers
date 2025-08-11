@@ -5,14 +5,15 @@ from typing import Optional, List, Dict, Any
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Chat con PDFs",
-    page_icon="📚",
+    page_title="Análisis de Licitación y Chat",
+    page_icon="📊",
     layout="wide"
 )
 
 # URLs de la API
 API_BASE_URL = "http://127.0.0.1:8000"
-BASE_CHAT_URL = "http://127.0.0.1:8000/api/v1/llm"
+BASE_CHAT_URL = f"{API_BASE_URL}/api/v1/llm"
+DASHBOARD_URL = f"{BASE_CHAT_URL}/dashboard"  # Nueva URL para el dashboard
 UPLOAD_URL = f"{API_BASE_URL}/api/v1/files/upload-pdfs/"
 STATUS_URL = f"{API_BASE_URL}/api/v1/check/status"
 CHAT_URL = f"{BASE_CHAT_URL}/chat"
@@ -24,7 +25,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "files_ready" not in st.session_state:
     st.session_state.files_ready = False
-
+if "dashboard_data" not in st.session_state:
+    st.session_state.dashboard_data = None
 
 # --- Funciones de la API ---
 
@@ -73,9 +75,97 @@ def reset_conversation():
         st.error(f"Error al limpiar la conversación: {e}")
         return False
 
-# --- Interfaz principal ---
+def fetch_dashboard_data():
+    """Obtiene los datos del dashboard desde la API"""
+    try:
+        response = requests.get(DASHBOARD_URL, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        st.error(f"Error al obtener los datos del dashboard: {e}")
+        return None
 
-st.title("📚 Chat con Documentos PDF")
+# --- Componentes del Dashboard ---
+
+def show_dashboard(data: Dict[str, Any]):
+    """Muestra el dashboard basado en los datos del JSON"""
+    st.title("📊 Dashboard de Análisis de Licitación")
+
+    st.subheader("Información General del Contrato")
+    col1, col2, col3 = st.columns(3)
+    
+    # Presupuesto
+    with col1:
+        presupuesto = data.get("analisis_pliego", {}).get("condiciones_economicas", {}).get("presupuesto", {})
+        amount = presupuesto.get("amount")
+        currency = presupuesto.get("currency_code")
+        st.metric(label="Presupuesto Referencial", value=f"{amount:,.2f} {currency}" if amount else "N/A")
+
+    # Plazo de Ejecución
+    with col2:
+        plazo_data = data.get("analisis_pliego", {}).get("condiciones_legales", {}).get("plazos", [{}])[0]
+        plazo_dias = plazo_data.get("normalized", {}).get("duration_days")
+        st.metric(label="Plazo de Ejecución", value=f"{plazo_dias} días" if plazo_dias else "N/A")
+
+    # Anticipo
+    with col3:
+        anticipo_data = data.get("analisis_pliego", {}).get("condiciones_economicas", {}).get("anticipo", {})
+        anticipo_pct = anticipo_data.get("percentage")
+        st.metric(label="Porcentaje de Anticipo", value=f"{anticipo_pct}%" if anticipo_pct else "N/A")
+
+    st.markdown("---")
+
+    st.subheader("Análisis de Requisitos Técnicos")
+    requisitos = data.get("analisis_pliego", {}).get("requisitos_tecnicos", [{}])[0]
+    
+    with st.expander("Materiales"):
+        materiales = requisitos.get("materiales", [])
+        if materiales:
+            st.markdown(", ".join(materiales))
+        else:
+            st.info("No se encontraron materiales.")
+    
+    with st.expander("Procesos"):
+        procesos = requisitos.get("procesos", [])
+        if procesos:
+            st.markdown(", ".join(procesos))
+        else:
+            st.info("No se encontraron procesos.")
+
+    st.markdown("---")
+
+    st.subheader("Alertas y Contradicciones")
+    
+    # Contradicciones del pliego vs ley
+    st.markdown("#### Pliego vs. Ley")
+    contradictorias_ley = data.get("analisis_pliego_vs_ley", {}).get("clausulas_contradictorias", [])
+    if contradictorias_ley:
+        for contradiccion in contradictorias_ley:
+            st.warning(f"⚠️ **Contradicción:** {contradiccion}")
+    else:
+        st.success("✅ No se encontraron contradicciones significativas entre el pliego y la ley.")
+
+    # Contradicciones del pliego vs contrato
+    st.markdown("#### Pliego vs. Contrato")
+    contradictorias_contrato = data.get("analisis_pliego_vs_contrato", {}).get("clausulas_contradictorias", [])
+    if contradictorias_contrato:
+        for contradiccion in contradictorias_contrato:
+            st.error(f"❌ **Contradicción:** {contradiccion}")
+    else:
+        st.success("✅ No se encontraron contradicciones entre el pliego y el contrato.")
+
+    st.markdown("---")
+
+    st.subheader("Cláusulas Faltantes")
+    faltantes = data.get("analisis_pliego_vs_ley", {}).get("clausulas_faltantes", [])
+    if faltantes:
+        st.info("ℹ️ El pliego no incluye las siguientes cláusulas obligatorias de la Ley:")
+        st.table({"Cláusula Faltante": faltantes})
+    else:
+        st.success("✅ No se encontraron cláusulas faltantes.")
+
+# --- Interfaz principal ---
+st.title("📚 Análisis de Licitación y Chat")
 
 # Sidebar para subir archivos y estado
 with st.sidebar:
@@ -95,6 +185,7 @@ with st.sidebar:
                 if success:
                     st.success(message)
                     st.session_state.files_ready = False
+                    st.session_state.dashboard_data = None  # Reiniciar datos del dashboard
                 else:
                     st.error(message)
     
@@ -118,37 +209,51 @@ with st.sidebar:
     if st.button("🗑️ Limpiar Chat", help="Esto reiniciará la conversación en el servidor y en la app."):
         if reset_conversation():
             st.session_state.messages = []
+            st.session_state.dashboard_data = None
             st.rerun()
 
-# Área principal del chat
-st.header("💬 Chat")
+# --- Contenido principal con Tabs ---
 
-# Mostrar mensajes históricos del chat
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+tab_dashboard, tab_chat = st.tabs(["📊 Dashboard", "💬 Chat"])
 
-chat_disabled = not st.session_state.files_ready
+with tab_dashboard:
+    st.header("Dashboard de Análisis")
+    if st.session_state.files_ready:
+        if st.button("Actualizar Dashboard"):
+            with st.spinner("Cargando datos del dashboard..."):
+                st.session_state.dashboard_data = fetch_dashboard_data()
+        
+        if st.session_state.dashboard_data:
+            show_dashboard(st.session_state.dashboard_data)
+        else:
+            st.info("Haz clic en 'Actualizar Dashboard' para cargar el análisis del pliego.")
+    else:
+        st.warning("Espera a que los archivos estén procesados para ver el dashboard.")
 
-if chat_disabled:
-    st.info("⏳ Espera a que los archivos estén procesados para chatear")
 
-# Entrada del usuario y lógica del chat
-if prompt := st.chat_input("Escribe tu pregunta aquí...", disabled=chat_disabled):
-    # Añadir el mensaje del usuario a la sesión
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    
-    # Mostrar el mensaje del usuario
-    with st.chat_message("user"):
-        st.markdown(prompt)
-    
-    # Enviar el mensaje a la API y obtener la respuesta
-    with st.spinner("Procesando..."):
-        assistant_response = post_chat_message(prompt)
+with tab_chat:
+    st.header("Chat con Documentos")
+    # Área del chat
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-    # Añadir y mostrar la respuesta del asistente
-    if assistant_response:
-        st.session_state.messages.append({"role": "assistant", "content": assistant_response})
-        with st.chat_message("assistant"):
-            st.markdown(assistant_response)
+    chat_disabled = not st.session_state.files_ready
 
+    if chat_disabled:
+        st.info("⏳ Espera a que los archivos estén procesados para chatear")
+
+    # Entrada del usuario y lógica del chat
+    if prompt := st.chat_input("Escribe tu pregunta aquí...", disabled=chat_disabled):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        with st.spinner("Procesando..."):
+            assistant_response = post_chat_message(prompt)
+
+        if assistant_response:
+            st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+            with st.chat_message("assistant"):
+                st.markdown(assistant_response)

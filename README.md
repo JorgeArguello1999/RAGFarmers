@@ -77,7 +77,8 @@ Then open the provided local URL in your browser.
 
 ## 📈 Example Dashboard
 
-![Dashboard Preview](docs/dashboard_example.png)
+![Dashboard Preview](frontend/dashboard_example.png)
+![ChatPreview](frontend/chatbot_example.png)
 
 ## 📜 License
 
