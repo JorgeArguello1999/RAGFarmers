@@ -1,299 +1,199 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AI-Licitaciones — Demo Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root{
-      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#06b6d4; --danger:#ef4444; --ok:#10b981; --warn:#f59e0b;
-    }
-    *{box-sizing:border-box}
-    body{font-family:Inter,system-ui,Helvetica,Arial; margin:0; background:linear-gradient(180deg,#071126 0%, #081227 100%); color:#e6eef6}
-    .container{max-width:1200px; margin:28px auto; padding:20px}
-    header{display:flex; align-items:center; gap:16px}
-    .logo{width:56px; height:56px; background:linear-gradient(135deg,var(--accent),#7c3aed); border-radius:10px; display:flex;align-items:center;justify-content:center;font-weight:700}
-    h1{margin:0; font-size:20px}
-    p.lead{margin:4px 0 0; color:var(--muted); font-size:13px}
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900"
+    />
 
-    .layout{display:grid; grid-template-columns:300px 1fr; gap:18px; margin-top:18px}
-    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); padding:16px; border-radius:12px}
+    <title>Stitch Design</title>
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
 
-    /* Sidebar */
-    .sidebar h3{margin:0 0 8px}
-    .upload-area{border:2px dashed rgba(255,255,255,0.04); padding:12px; border-radius:8px}
-    .file-list{margin-top:10px; max-height:220px; overflow:auto}
-    .file-item{display:flex; justify-content:space-between; gap:8px; padding:8px; border-radius:8px; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); margin-bottom:8px}
-    .btn{background:var(--accent); color:#041025; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:600}
-    .small{font-size:13px}
-    .muted{color:var(--muted)}
-
-    /* Main */
-    .top-cards{display:flex; gap:12px; margin-bottom:12px}
-    .card{flex:1; padding:16px; border-radius:10px}
-    .card h4{margin:0 0 8px}
-    .metric{font-size:20px; font-weight:700}
-
-    .cols{display:grid; grid-template-columns: 1fr 420px; gap:12px}
-    table{width:100%; border-collapse:collapse}
-    th,td{padding:8px; text-align:left; border-bottom:1px dashed rgba(255,255,255,0.02)}
-
-    .risk{display:flex; gap:10px; align-items:center}
-    .dot{width:12px;height:12px;border-radius:50%}
-    .dot.ok{background:var(--ok)}
-    .dot.warn{background:var(--warn)}
-    .dot.danger{background:var(--danger)}
-
-    footer{margin-top:16px; color:var(--muted); font-size:13px}
-
-    /* responsive */
-    @media (max-width:900px){.layout{grid-template-columns:1fr} .cols{grid-template-columns:1fr} .sidebar{order:2}}
-  </style>
-</head>
-<body>
-  <div class="container">
-    <header>
-      <div class="logo">AI</div>
-      <div>
-        <h1>AI-Licitaciones — Demo Dashboard</h1>
-        <p class="lead">Simulated Streamlit-like interface: upload multiple documents, run automatic analysis, compare proposals and visualize risks.</p>
-      </div>
-    </header>
-
-    <div class="layout">
-      <aside class="panel sidebar">
-        <h3>Inputs & Controls</h3>
-        <div class="upload-area">
-          <label class="small muted">Upload PDF / TXT / JSON (demo only)</label>
-          <input id="files" type="file" multiple accept=".pdf,.txt,.json" style="width:100%; margin-top:8px">
-          <div class="file-list" id="fileList"></div>
-        </div>
-
-        <div style="margin-top:12px">
-          <label class="small muted">Processing options</label>
-          <div style="display:flex; gap:8px; margin-top:8px">
-            <select id="lang" style="padding:8px;border-radius:8px;background:#061222;color:#e6eef6;border:none">
-              <option value="es">Spanish (es)</option>
-              <option value="en">English (en)</option>
-            </select>
-            <button id="runBtn" class="btn">Run analysis</button>
-          </div>
-        </div>
-
-        <div style="margin-top:12px">
-          <label class="small muted">Export</label>
-          <div style="display:flex; gap:8px; margin-top:8px">
-            <button id="exportJson" class="btn" style="background:#7c3aed">Export JSON</button>
-            <button id="exportReport" class="btn" style="background:#06d6a0">Export Report</button>
-          </div>
-        </div>
-
-        <div style="margin-top:14px">
-          <h4 style="margin:0">Parameters</h4>
-          <p class="muted small">Adjust thresholds used by the simulated analyzer.</p>
-          <label class="small muted">Risk sensitivity: <span id="sensVal">0.5</span></label>
-          <input id="sensitivity" type="range" min="0" max="1" step="0.05" value="0.5" style="width:100%">
-        </div>
-
-      </aside>
-
-      <main>
-        <div class="panel">
-          <div class="top-cards">
-            <div class="card" style="background:linear-gradient(180deg, rgba(6,182,212,0.08), rgba(6,182,212,0.03)); border:1px solid rgba(6,182,212,0.12)">
-              <h4>Overall Compliance</h4>
-              <div class="metric" id="overallCompliance">—%</div>
-              <div class="muted small">Aggregated legal & technical compliance</div>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  </head>
+  <body>
+    <div class="relative flex size-full min-h-screen flex-col bg-[#111418] dark group/design-root overflow-x-hidden" style='font-family: Inter, "Noto Sans", sans-serif;'>
+      <div class="layout-container flex h-full grow flex-col">
+        <header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#283039] px-10 py-3">
+          <div class="flex items-center gap-4 text-white">
+            <div class="size-4">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M39.475 21.6262C40.358 21.4363 40.6863 21.5589 40.7581 21.5934C40.7876 21.655 40.8547 21.857 40.8082 22.3336C40.7408 23.0255 40.4502 24.0046 39.8572 25.2301C38.6799 27.6631 36.5085 30.6631 33.5858 33.5858C30.6631 36.5085 27.6632 38.6799 25.2301 39.8572C24.0046 40.4502 23.0255 40.7407 22.3336 40.8082C21.8571 40.8547 21.6551 40.7875 21.5934 40.7581C21.5589 40.6863 21.4363 40.358 21.6262 39.475C21.8562 38.4054 22.4689 36.9657 23.5038 35.2817C24.7575 33.2417 26.5497 30.9744 28.7621 28.762C30.9744 26.5497 33.2417 24.7574 35.2817 23.5037C36.9657 22.4689 38.4054 21.8562 39.475 21.6262ZM4.41189 29.2403L18.7597 43.5881C19.8813 44.7097 21.4027 44.9179 22.7217 44.7893C24.0585 44.659 25.5148 44.1631 26.9723 43.4579C29.9052 42.0387 33.2618 39.5667 36.4142 36.4142C39.5667 33.2618 42.0387 29.9052 43.4579 26.9723C44.1631 25.5148 44.659 24.0585 44.7893 22.7217C44.9179 21.4027 44.7097 19.8813 43.5881 18.7597L29.2403 4.41187C27.8527 3.02428 25.8765 3.02573 24.2861 3.36776C22.6081 3.72863 20.7334 4.58419 18.8396 5.74801C16.4978 7.18716 13.9881 9.18353 11.5858 11.5858C9.18354 13.988 7.18717 16.4978 5.74802 18.8396C4.58421 20.7334 3.72865 22.6081 3.36778 24.2861C3.02574 25.8765 3.02429 27.8527 4.41189 29.2403Z"
+                  fill="currentColor"
+                ></path>
+              </svg>
             </div>
-            <div class="card" style="background:linear-gradient(180deg, rgba(124,58,237,0.05), rgba(124,58,237,0.02)); border:1px solid rgba(124,58,237,0.06)">
-              <h4>Detected Risks</h4>
-              <div class="metric" id="riskCount">—</div>
-              <div class="muted small">Ambiguities, missing clauses, contradictions</div>
-            </div>
-            <div class="card" style="background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent); border:1px solid rgba(255,255,255,0.03)">
-              <h4>Top Recommendation</h4>
-              <div id="topRec" class="muted small">—</div>
-            </div>
+            <h2 class="text-white text-lg font-bold leading-tight tracking-[-0.015em]">AI-Bidding</h2>
           </div>
-
-          <div class="cols">
-            <section>
-              <h3 style="margin-top:0">Proposals Comparison</h3>
-              <div style="overflow:auto">
-                <table id="compareTable">
-                  <thead>
-                    <tr><th>Contractor</th><th>Compliance</th><th>Budget</th><th>Delivery</th><th>Risks</th></tr>
-                  </thead>
-                  <tbody></tbody>
-                </table>
+          <div class="flex flex-1 justify-end gap-8">
+            <div
+              class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
+              style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCMJY7Fm8-Ar76qLh_yfCo9wz-sVxIte9KuI_-yORYqGegmuCyt_kuAFAJ58nTyp1qUmkN769GGQddcF58k3a74ZKmWL7MbUxl5lQ9xihVssSSRVHZ4OicSATzahm5FF39INWTbPAFUNvilfQ7UDVuSHpJzY4UW9VFKZEVJ9d8Pcs-_RhLGghBouFn_Iqw3rILsS4V0J0NaC5jFeXX7h3AQk27kN0tdrphNEj9AROtWqloFNvKUIiGREpUIIdP0YEHTourh2BPR_ts");'
+            ></div>
+          </div>
+        </header>
+        <div class="gap-1 px-6 flex flex-1 justify-center py-5">
+          <div class="layout-content-container flex flex-col max-w-[920px] flex-1">
+            <div class="flex flex-wrap justify-between gap-3 p-4"><p class="text-white tracking-light text-[32px] font-bold leading-tight min-w-72">Dashboard</p></div>
+            <h2 class="text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Data Upload</h2>
+            <div class="flex flex-col gap-3 p-4">
+              <div class="flex gap-6 justify-between">
+                <p class="text-white text-base font-medium leading-normal">Uploading...</p>
+                <p class="text-white text-sm font-normal leading-normal">50%</p>
               </div>
-
-              <h3 style="margin-top:16px">Visualization</h3>
-              <canvas id="barChart" height="150"></canvas>
-              <canvas id="radarChart" height="200" style="margin-top:12px"></canvas>
-            </section>
-
-            <aside class="panel" style="height:100%">
-              <h3 style="margin-top:0">Risk Details</h3>
-              <div id="riskList"></div>
-
-              <h3 style="margin-top:12px">Contractor Validation</h3>
-              <div id="rucList" class="muted small">No lookups yet. (Demo simulated)</div>
-            </aside>
+              <div class="rounded bg-[#3b4754]"><div class="h-2 rounded bg-white" style="width: 50%;"></div></div>
+              <p class="text-[#9cabba] text-sm font-normal leading-normal">File: bidding_data.csv</p>
+            </div>
+            <div class="flex flex-col p-4">
+              <div class="flex flex-col items-center gap-6 rounded-lg border-2 border-dashed border-[#3b4754] px-6 py-14">
+                <div class="flex max-w-[480px] flex-col items-center gap-2">
+                  <p class="text-white text-lg font-bold leading-tight tracking-[-0.015em] max-w-[480px] text-center">Drag and drop files here</p>
+                  <p class="text-white text-sm font-normal leading-normal max-w-[480px] text-center">Or click to browse</p>
+                </div>
+                <button
+                  class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-[#283039] text-white text-sm font-bold leading-normal tracking-[0.015em]"
+                >
+                  <span class="truncate">Upload Files</span>
+                </button>
+              </div>
+            </div>
+            <h2 class="text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">AI Analysis</h2>
+            <div class="flex flex-wrap gap-4 p-4">
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b4754]">
+                <p class="text-white text-base font-medium leading-normal">Compliance</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">95%</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b4754]">
+                <p class="text-white text-base font-medium leading-normal">Legal Flaws</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">3</p>
+              </div>
+              <div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-lg p-6 border border-[#3b4754]">
+                <p class="text-white text-base font-medium leading-normal">Offer Comparison</p>
+                <p class="text-white tracking-light text-2xl font-bold leading-tight">Excellent</p>
+              </div>
+            </div>
+            <div class="flex px-4 py-3 justify-start">
+              <button
+                class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-[#0d80f2] text-white text-sm font-bold leading-normal tracking-[0.015em]"
+              >
+                <span class="truncate">Download Report</span>
+              </button>
+            </div>
+            <h2 class="text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Insights</h2>
+            <div class="flex flex-wrap gap-4 px-4 py-6">
+              <div class="flex min-w-72 flex-1 flex-col gap-2 rounded-lg border border-[#3b4754] p-6">
+                <p class="text-white text-base font-medium leading-normal">Bidding Trends</p>
+                <p class="text-white tracking-light text-[32px] font-bold leading-tight truncate">120</p>
+                <div class="flex gap-1">
+                  <p class="text-[#9cabba] text-base font-normal leading-normal">Last 3 Months</p>
+                  <p class="text-[#0bda5b] text-base font-medium leading-normal">+15%</p>
+                </div>
+                <div class="grid min-h-[180px] grid-flow-col gap-6 grid-rows-[1fr_auto] items-end justify-items-center px-3">
+                  <div class="border-[#9cabba] bg-[#283039] border-t-2 w-full" style="height: 60%;"></div>
+                  <p class="text-[#9cabba] text-[13px] font-bold leading-normal tracking-[0.015em]">Jan</p>
+                  <div class="border-[#9cabba] bg-[#283039] border-t-2 w-full" style="height: 70%;"></div>
+                  <p class="text-[#9cabba] text-[13px] font-bold leading-normal tracking-[0.015em]">Feb</p>
+                  <div class="border-[#9cabba] bg-[#283039] border-t-2 w-full" style="height: 80%;"></div>
+                  <p class="text-[#9cabba] text-[13px] font-bold leading-normal tracking-[0.015em]">Mar</p>
+                </div>
+              </div>
+              <div class="flex min-w-72 flex-1 flex-col gap-2 rounded-lg border border-[#3b4754] p-6">
+                <p class="text-white text-base font-medium leading-normal">Offer Performance</p>
+                <p class="text-white tracking-light text-[32px] font-bold leading-tight truncate">85%</p>
+                <div class="flex gap-1">
+                  <p class="text-[#9cabba] text-base font-normal leading-normal">Last 6 Months</p>
+                  <p class="text-[#fa6238] text-base font-medium leading-normal">-5%</p>
+                </div>
+                <div class="flex min-h-[180px] flex-1 flex-col gap-8 py-4">
+                  <svg width="100%" height="148" viewBox="-3 0 478 150" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                    <path
+                      d="M0 109C18.1538 109 18.1538 21 36.3077 21C54.4615 21 54.4615 41 72.6154 41C90.7692 41 90.7692 93 108.923 93C127.077 93 127.077 33 145.231 33C163.385 33 163.385 101 181.538 101C199.692 101 199.692 61 217.846 61C236 61 236 45 254.154 45C272.308 45 272.308 121 290.462 121C308.615 121 308.615 149 326.769 149C344.923 149 344.923 1 363.077 1C381.231 1 381.231 81 399.385 81C417.538 81 417.538 129 435.692 129C453.846 129 453.846 25 472 25V149H326.769H0V109Z"
+                      fill="url(#paint0_linear_1131_5935)"
+                    ></path>
+                    <path
+                      d="M0 109C18.1538 109 18.1538 21 36.3077 21C54.4615 21 54.4615 41 72.6154 41C90.7692 41 90.7692 93 108.923 93C127.077 93 127.077 33 145.231 33C163.385 33 163.385 101 181.538 101C199.692 101 199.692 61 217.846 61C236 61 236 45 254.154 45C272.308 45 272.308 121 290.462 121C308.615 121 308.615 149 326.769 149C344.923 149 344.923 1 363.077 1C381.231 1 381.231 81 399.385 81C417.538 81 417.538 129 435.692 129C453.846 129 453.846 25 472 25"
+                      stroke="#9cabba"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                    ></path>
+                    <defs>
+                      <linearGradient id="paint0_linear_1131_5935" x1="236" y1="1" x2="236" y2="149" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#283039"></stop>
+                        <stop offset="1" stop-color="#283039" stop-opacity="0"></stop>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div class="flex justify-around">
+                    <p class="text-[#9cabba] text-[13px] font-bold leading-normal tracking-[0.015em]">Q1</p>
+                    <p class="text-[#9cabba] text-[13px] font-bold leading-normal tracking-[0.015em]">Q2</p>
+                    <p class="text-[#9cabba] text-[13px] font-bold leading-normal tracking-[0.015em]">Q3</p>
+                    <p class="text-[#9cabba] text-[13px] font-bold leading-normal tracking-[0.015em]">Q4</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-
+          <div class="layout-content-container flex flex-col w-[360px]">
+            <h2 class="text-white text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5">Chatbot</h2>
+            <p class="text-white text-base font-normal leading-normal pb-3 pt-1 px-4">Ask me anything about the bidding data.</p>
+            <div class="flex gap-3 p-4">
+              <div
+                class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
+                style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDnHkKrMBVWZYfKjS2JjMetvTT2b4-TtQ_ASD-dH92HeefsMvSzsyPU9acpAr8bIsQwR6VTC0e260D0O6jSE0PUa5Kmx3mM1vcvojIYbsC-vFE3rx2N1E4wcgTAcsx7ywcYVKhG3kYDAUS5NDdhSGzJGdrRh_1ff2HnoE7ygq5oAfV9palhKiQsLZa1YZihtNWcUAWVDny2PKHKuN_p1OXfEnxz4ByoZ1Kbt_9oSdO8NesWXkXA1kBBY95scQKxJkEFZdfXMmUwd1U");'
+              ></div>
+              <div class="flex flex-1 flex-col items-stretch gap-2">
+                <div class="flex flex-col gap-1">
+                  <div class="flex flex-wrap items-center gap-3">
+                    <p class="text-white text-base font-bold leading-tight">AI Assistant</p>
+                    <p class="text-[#9cabba] text-sm font-normal leading-normal">10:30 AM</p>
+                  </div>
+                  <p class="text-white text-base font-normal leading-normal">Hello! How can I assist you with your bidding data today?</p>
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-3 p-4">
+              <div
+                class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
+                style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAmWVLIETF2fmiAHdFmrZbh1VR_IUq_uWgAtSw7DWkgnT7FBRFR0AyZUPFDNQG7DSsLAfbKojpCI5ZOqOwx-GRIZ73ypSwQfigQwz-LSaVxDxN3e6jiQ6JJH075XV0XQpPVqWORIpiPtFJIDTFcF5mW4-5J6P3zEx7olKixXw2TtUZrLc-KTFzTYljfcT6_LZfQ_nZ9OM5fi8tBls3SZiOWUgnKJ0JvlYCpp5g05inc2QxD-0OS0ePqCY_dpk-eEH8HAHFMMF-hK0o");'
+              ></div>
+              <div class="flex flex-1 flex-col items-stretch gap-2">
+                <div class="flex flex-col gap-1">
+                  <div class="flex flex-wrap items-center gap-3">
+                    <p class="text-white text-base font-bold leading-tight">User</p>
+                    <p class="text-[#9cabba] text-sm font-normal leading-normal">10:35 AM</p>
+                  </div>
+                  <p class="text-white text-base font-normal leading-normal">Can you summarize the key trends in the last three months?</p>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center px-4 py-3 gap-3 @container">
+              <label class="flex flex-col min-w-40 h-12 flex-1">
+                <div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+                  <input
+                    placeholder="Type your question..."
+                    class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-0 border-none bg-[#283039] focus:border-none h-full placeholder:text-[#9cabba] px-4 rounded-r-none border-r-0 pr-2 text-base font-normal leading-normal"
+                    value=""
+                  />
+                  <div class="flex border-none bg-[#283039] items-center justify-center pr-4 rounded-r-lg border-l-0 !pr-2">
+                    <div class="flex items-center gap-4 justify-end">
+                      <button
+                        class="min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-[#0d80f2] text-white text-sm font-medium leading-normal hidden @[480px]:block"
+                      >
+                        <span class="truncate">Send</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
         </div>
-
-        <footer>
-          <div style="display:flex; justify-content:space-between; align-items:center">
-            <div>Demo built to simulate core Streamlit interactions for presentations.</div>
-            <div class="muted small">AI-Licitaciones • Non-commercial demo</div>
-          </div>
-        </footer>
-      </main>
+      </div>
     </div>
-  </div>
-
-  <!-- Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <script>
-    // Demo data generator (simulates NLP/OCR analysis results)
-    function fakeAnalyze(name, sensitivity){
-      // generate random metrics seeded by name
-      let seed = 0;
-      for(let i=0;i<name.length;i++) seed += name.charCodeAt(i);
-      const rand = (x)=>{seed = (seed*9301+49297)%233280; return (seed/233280)*x};
-
-      const compliance = Math.max(20, Math.round((rand(80) + (1-sensitivity*40))*1));
-      const budget = Math.round(rand(90000)+10000);
-      const delivery = Math.round(rand(120))+30; // days
-      const risks = Math.max(0, Math.round(6 - compliance/20 + rand(3)));
-      const issues = [];
-      if(compliance < 50) issues.push('Missing mandatory legal clause');
-      if(risks>3) issues.push('Ambiguous warranty terms');
-      if(delivery>100) issues.push('Unrealistic delivery time');
-      if(budget>90000) issues.push('High budget variance');
-
-      return {name, compliance, budget, delivery, risks, issues};
-    }
-
-    const fileListEl = document.getElementById('fileList');
-    const filesInput = document.getElementById('files');
-    const runBtn = document.getElementById('runBtn');
-    const compareTable = document.querySelector('#compareTable tbody');
-    const overallComplianceEl = document.getElementById('overallCompliance');
-    const riskCountEl = document.getElementById('riskCount');
-    const topRecEl = document.getElementById('topRec');
-    const riskListEl = document.getElementById('riskList');
-    const rucListEl = document.getElementById('rucList');
-    const exportJson = document.getElementById('exportJson');
-    const exportReport = document.getElementById('exportReport');
-    const sensitivity = document.getElementById('sensitivity');
-    const sensVal = document.getElementById('sensVal');
-
-    let uploaded = [];
-    let analyzed = [];
-
-    filesInput.addEventListener('change', (e)=>{
-      uploaded = Array.from(e.target.files).map(f=>({name:f.name, size:f.size, type:f.type}));
-      renderFileList();
-    });
-
-    function renderFileList(){
-      fileListEl.innerHTML = '';
-      if(uploaded.length===0){ fileListEl.innerHTML='<div class="muted small">No files selected</div>'; return }
-      uploaded.forEach((f, i)=>{
-        const div = document.createElement('div'); div.className='file-item';
-        div.innerHTML = `<div><strong>${f.name}</strong><div class='muted small'>${Math.round(f.size/1024)} KB</div></div><div><button class='btn' onclick='removeFile(${i})'>Remove</button></div>`;
-        fileListEl.appendChild(div);
-      })
-    }
-
-    window.removeFile = function(i){ uploaded.splice(i,1); filesInput.value=''; renderFileList(); }
-
-    runBtn.addEventListener('click', ()=>{
-      if(uploaded.length===0){ alert('Please upload sample files to simulate analysis.'); return }
-      analyzed = uploaded.map(f => fakeAnalyze(f.name, parseFloat(sensitivity.value)));
-      renderAnalysis();
-    });
-
-    sensitivity.addEventListener('input', ()=>{ sensVal.textContent = sensitivity.value; });
-
-    function renderAnalysis(){
-      // Table
-      compareTable.innerHTML = '';
-      analyzed.forEach(a=>{
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td><strong>${a.name}</strong></td><td>${a.compliance}%</td><td>$${a.budget.toLocaleString()}</td><td>${a.delivery} days</td><td><div class='risk'><span class='dot ${a.risks>3?'danger':a.risks>1?'warn':'ok'}'></span>${a.risks} issues</div></td>`;
-        compareTable.appendChild(tr);
-      });
-
-      // Metrics
-      const avg = Math.round(analyzed.reduce((s,x)=>s+x.compliance,0)/analyzed.length);
-      overallComplianceEl.textContent = avg + '%';
-      const totalRisks = analyzed.reduce((s,x)=>s+x.risks,0);
-      riskCountEl.textContent = totalRisks;
-      topRecEl.textContent = analyzed.sort((a,b)=>a.compliance-b.compliance)[0].issues[0] || 'All key clauses present.';
-
-      // Risk list
-      riskListEl.innerHTML = '';
-      analyzed.forEach(a=>{
-        a.issues.forEach(issue=>{
-          const div = document.createElement('div'); div.style.padding='8px'; div.style.borderBottom='1px dashed rgba(255,255,255,0.02)';
-          div.innerHTML = `<div style='display:flex; justify-content:space-between; align-items:center'><div><strong>${a.name}</strong><div class='muted small'>${issue}</div></div><div style='text-align:right'><div class='muted small'>Severity: ${a.risks}</div></div></div>`;
-          riskListEl.appendChild(div);
-        })
-      })
-
-      // Simulated RUC validation
-      rucListEl.innerHTML = analyzed.map(a=>`<div><strong>${a.name}</strong>: VALID (simulated)</div>`).join('');
-
-      // Charts
-      const labels = analyzed.map(a=>a.name);
-      const compliances = analyzed.map(a=>a.compliance);
-      const budgets = analyzed.map(a=>a.budget);
-
-      renderBarChart(labels, compliances);
-      renderRadarChart(labels, analyzed);
-    }
-
-    // Chart.js helpers
-    let barChart, radarChart;
-    function renderBarChart(labels, data){
-      const ctx = document.getElementById('barChart').getContext('2d');
-      if(barChart) barChart.destroy();
-      barChart = new Chart(ctx, {type:'bar', data:{labels, datasets:[{label:'Compliance %', data, borderWidth:1}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, max:100}}}})
-    }
-
-    function renderRadarChart(labels, items){
-      const ctx = document.getElementById('radarChart').getContext('2d');
-      if(radarChart) radarChart.destroy();
-      const datasets = items.map((it, idx)=>({label:it.name, data:[it.compliance, 100-it.risks*10, 100 - Math.min(100, it.budget/1500)], fill:true, borderWidth:1}));
-      radarChart = new Chart(ctx, {type:'radar', data:{labels:['Compliance','Risk Score Inverse','Budget Efficiency'], datasets}, options:{responsive:true}})
-    }
-
-    // Export JSON
-    exportJson.addEventListener('click', ()=>{
-      if(analyzed.length===0){ alert('No analysis to export'); return }
-      const blob = new Blob([JSON.stringify(analyzed, null, 2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'analysis.json'; a.click(); URL.revokeObjectURL(url);
-    });
-
-    // Export Report (simple HTML download)
-    exportReport.addEventListener('click', ()=>{
-      if(analyzed.length===0){ alert('No analysis to export'); return }
-      let html = `<html><head><meta charset='utf-8'><title>AI-Licitaciones Report</title></head><body><h1>AI-Licitaciones Report</h1>`;
-      html += `<h2>Summary</h2><p>Overall compliance: ${overallComplianceEl.textContent}</p>`;
-      html += `<h2>Details</h2>`;
-      analyzed.forEach(a=>{ html += `<h3>${a.name}</h3><ul><li>Compliance: ${a.compliance}%</li><li>Budget: $${a.budget}</li><li>Delivery: ${a.delivery} days</li><li>Risks: ${a.risks}</li>`; if(a.issues.length) { html += `<li>Issues:<ul>`+a.issues.map(i=>`<li>${i}</li>`).join('')+`</ul></li>` } html += `</ul>` });
-      html += `</body></html>`;
-      const blob = new Blob([html], {type:'text/html'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'report.html'; a.click(); URL.revokeObjectURL(url);
-    });
-
-    // Initialize
-    renderFileList();
-  </script>
-</body>
+  </body>
 </html>

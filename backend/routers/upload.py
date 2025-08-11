@@ -5,7 +5,7 @@ from typing import List
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-from database.redis import save_pdf_to_redis, redis_client
+from database.redis import save_pdf_to_redis, redis_client, set_processing_status
 from schemas.File import FileUploadError
 
 from utils.file import sanitize_filename
@@ -66,24 +66,28 @@ async def upload_multiple_pdfs_to_redis(
             detail="No files were provided."
         )
 
+    # 1. Establece el estado de procesamiento a False en Redis antes de iniciar la carga.
+    # Esto indica que se ha iniciado un nuevo trabajo.
+    await set_processing_status(False)
+    logger.info("Processing status set to False. New upload started.")
+
     uploaded_files_info = []
     failed_uploads = []
 
     for file in files:
         try:
-            # 1. Validate that the file is a PDF
+            # 2. Validate that the file is a PDF
             await validate_pdf_file(file)
 
-            # 2. Generate a unique identifier for the file
+            # 3. Generate a unique identifier for the file
             file_id = str(uuid.uuid4())
             sanitized_filename = sanitize_filename(file.filename)
 
-            # 3. Read file content
-            # The file must be read into memory to be sent to Redis
+            # 4. Read file content
             await file.seek(0)
             file_content = await file.read()
 
-            # 4. Prepare metadata
+            # 5. Prepare metadata
             metadata = {
                 "id": file_id,
                 "original_filename": sanitized_filename,
@@ -91,7 +95,7 @@ async def upload_multiple_pdfs_to_redis(
                 "size_bytes": len(file_content)
             }
 
-            # 5. Save content and metadata to Redis using the new function
+            # 6. Save content and metadata to Redis
             await save_pdf_to_redis(file_id, file_content, metadata)
             
             uploaded_files_info.append({"file_id": file_id, "original_filename": sanitized_filename})
@@ -113,7 +117,10 @@ async def upload_multiple_pdfs_to_redis(
             # Always close the file to release resources
             await file.close()
 
-    # Handle partial success
+    # Manejar la respuesta al usuario.
+    # Es crucial que un worker de fondo se encargue de cambiar el estado a 'True'
+    # una vez que haya terminado de procesar los archivos. La API solo encola el trabajo.
+
     if failed_uploads and uploaded_files_info:
         logger.warning(f"Partial upload: {len(uploaded_files_info)} succeeded, {len(failed_uploads)} failed.")
         return {
