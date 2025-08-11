@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, APIRouter
 from schemas.Chat import MessageRequest, HistoryMessage
 
 # Import the new LLM service module
-from models.llm_service import (
+from models.ll_chatbot import (
     initialize_llm_workflow,
     reload_documents_context,
     chat_with_assistant_service,
