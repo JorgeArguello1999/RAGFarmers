@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Dict, List
 
 from fastapi import FastAPI, HTTPException, APIRouter
-from pydantic import BaseModel
+
+from schemas.Chat import MessageRequest, HistoryMessage
 
 # Import the new LLM service module
 from models.llm_service import (
@@ -17,21 +18,8 @@ from models.llm_service import (
 from models.config import ContextoGeneral
 
 
-# -------------------
-# Pydantic Models
-# -------------------
-class MessageRequest(BaseModel):
-    message: str
-
-class HistoryMessage(BaseModel):
-    content: str
-    type: str
-
 app = APIRouter(prefix="/llm", tags=["LLM Chat"])
 
-# -------------------
-# FastAPI Endpoints
-# -------------------
 @app.on_event("startup")
 async def startup_event():
     """Initializes the LLM and LangGraph workflow on application startup."""
