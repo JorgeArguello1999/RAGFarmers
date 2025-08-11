@@ -1,7 +1,10 @@
 import streamlit as st
 import requests
-import json
+import json, os 
 from typing import Optional, List, Dict, Any
+
+from dotenv import load_dotenv
+load_dotenv()
 
 # Configuración de la página
 st.set_page_config(
@@ -10,10 +13,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# URLs de la API
-API_BASE_URL = "http://127.0.0.1:8000"
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
 BASE_CHAT_URL = f"{API_BASE_URL}/api/v1/llm"
-DASHBOARD_URL = f"{BASE_CHAT_URL}/dashboard"  # Nueva URL para el dashboard
+DASHBOARD_URL = f"{BASE_CHAT_URL}/dashboard"
 UPLOAD_URL = f"{API_BASE_URL}/api/v1/files/upload-pdfs/"
 STATUS_URL = f"{API_BASE_URL}/api/v1/check/status"
 CHAT_URL = f"{BASE_CHAT_URL}/chat"
