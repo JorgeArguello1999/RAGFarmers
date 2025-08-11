@@ -12,7 +12,7 @@ st.set_page_config(
 
 # URLs de la API
 API_BASE_URL = "http://127.0.0.1:8000"
-BASE_CHAT_URL = "http://127.0.0.1:8001"
+BASE_CHAT_URL = "http://127.0.0.1:8000/api/v1/llm"
 UPLOAD_URL = f"{API_BASE_URL}/api/v1/files/upload-pdfs/"
 STATUS_URL = f"{API_BASE_URL}/api/v1/check/status"
 CHAT_URL = f"{BASE_CHAT_URL}/chat"
