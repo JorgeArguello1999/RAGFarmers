@@ -109,7 +109,7 @@ REDIS_PASSWORD=devpass123
 ### 1. Run Redis Server (with custom config)
 
 ```
-cd backend
+cd backend/database
 # Use the provided Dockerfile in the project root for Redis
 # (Make sure you are in the correct directory with the Redis Dockerfile)
 docker build -t ragformers-redis -f ../Dockerfile .
