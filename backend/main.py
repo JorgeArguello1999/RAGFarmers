@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv
 from pathlib import Path
@@ -10,6 +11,7 @@ from routers.upload import router as upload_router
 from routers.home import router as home_router
 from routers.check import router as check_router
 from routers.chat import app as chat_router
+from routers.dashboard import router as dashboard_router
 
 # Directory where uploaded files will be stored
 UPLOAD_DIRECTORY = getenv("UPLOAD_DIRECTORY", "data")
@@ -35,8 +37,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+origins = [
+    "http://localhost",
+    "http://localhost:8501",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Routes
 app.include_router(home_router, prefix="/api/v1", tags=["Home"])
 app.include_router(upload_router, prefix="/api/v1", tags=["Files"])
 app.include_router(check_router, prefix="/api/v1", tags=["Data Check"])
 app.include_router(chat_router, prefix="/api/v1", tags=["LLM Chat"])
+app.include_router(dashboard_router, prefix="/api/v1", tags=["LLM Dashboard"])
