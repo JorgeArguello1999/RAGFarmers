@@ -6,21 +6,21 @@
 
 ## 📌 Overview
 **AI-Licitaciones** is an AI-powered web platform designed to automate the analysis and comparison of construction tender documents (bidding terms, proposals, and contracts).  
-The system uses **OCR** and **Natural Language Processing (NLP)** to extract, classify, validate, and highlight key legal, technical, and financial aspects, enabling faster, more accurate, and risk-aware decision-making.
+The system uses **OCR** and an **AI ChatBot** framework to extract, classify, validate, and highlight key legal, technical, and financial aspects, enabling faster, more accurate, and risk-aware decision-making.
 
-## 🚀 Key Features
-- 📄 **OCR Processing**: Extracts text from both scanned and digital PDFs.  
-- 🧠 **Automatic Classification**: Separates content into legal, technical, and economic sections.  
-- 🔍 **Contractor Validation**: Checks RUC and legal eligibility via APIs or web scraping.  
-- ⚠️ **Risk Detection**: Identifies missing clauses, ambiguities, and inconsistencies.  
-- 📊 **Proposal Comparison**: Interactive dashboard with compliance rates, risk indicators, and visual summaries.  
-- 🌐 **Multi-file Upload**: Process multiple documents at once with side-by-side analysis.
+## Key Features
+- **OCR Processing**: Extracts text from both scanned and digital PDFs.  
+- **Automatic Classification**: Separates content into legal, technical, and economic sections.  
+- **Contractor Validation**: Checks RUC and legal eligibility via APIs or web scraping.  
+- **Risk Detection**: Identifies missing clauses, ambiguities, and inconsistencies.  
+- **Proposal Comparison**: Interactive dashboard with compliance rates, risk indicators, and visual summaries.  
+- **Multi-file Upload**: Process multiple documents at once with side-by-side analysis.
 
-## 🛠 Tech Stack
+## Tech Stack
 - **Backend**: [FastAPI](https://fastapi.tiangolo.com/) (Python)  
 - **Frontend**: [Streamlit](https://streamlit.io/)  
-- **NLP**: [spaCy](https://spacy.io/), [Hugging Face Transformers](https://huggingface.co/)  
-- **OCR**: [pytesseract](https://github.com/madmaze/pytesseract), [pdfplumber](https://github.com/jsvine/pdfplumber)  
+- **AI Chatbot**: [LangChain](https://www.langchain.com/), [LangGraph](https://www.langchain.com/langgraph)  
+- **OCR**: [Docling](https://docling-project.github.io/docling/)  
 - **Data Processing**: pandas, regex, requests, BeautifulSoup4  
 
 ## 📂 Project Structure
@@ -35,7 +35,7 @@ RAGFormers/
 
 ```
 
-## ⚙️ Installation
+## Installation
 ```bash
 # Clone repository
 git clone https://github.com/JorgeArguello1999/RAGFarmers.git
@@ -50,7 +50,7 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ````
 
-## ▶️ Usage
+## Usage
 
 **Run Backend (FastAPI)**:
 
@@ -66,23 +66,26 @@ streamlit run frontend/app.py
 
 Then open the provided local URL in your browser.
 
-## 📊 Workflow
+## Workflow
 
 1. Upload one or multiple PDF documents (tender documents, proposals, contracts).
-2. System applies OCR and extracts text.
-3. NLP model classifies sections (legal, technical, economic).
+2. System applies OCR and extracts text in markdown format.
+3. AI Chatbot framework analyses markdown files to extract and classify relevant information.
 4. Validates contractor RUC via API/scraping.
-5. Detects missing, ambiguous, or risky clauses.
-6. Displays interactive comparative dashboard.
+5. Displays interactive comparative dashboard.
 
-## 📈 Example Dashboard
+## Example Dashboard
 
 ![Dashboard Preview](frontend/dashboard_example.png)
 ![ChatPreview](frontend/chatbot_example.png)
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE.md) file for details.
 
 
-**Developed by:** \ RAGFormers 🚀
+**Developed by:** 
+
+* Jorge Argüello (Full Stack Developer)
+* Kuntur Muenala (AI Engineer)
+* Diego Villacreses (AI Engineer)
