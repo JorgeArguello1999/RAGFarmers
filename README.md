@@ -6,7 +6,7 @@
 
 ## 📌 Overview
 **AI-Licitaciones** is an AI-powered web platform designed to automate the analysis and comparison of construction tender documents (bidding terms, proposals, and contracts).  
-The system uses **OCR** and an **AI ChatBot** framework to extract, classify, validate, and highlight key legal, technical, and financial aspects, enabling faster, more accurate, and risk-aware decision-making.
+The system uses **OCR** and an **AI Framework** to extract, classify, validate, and highlight key legal, technical, and financial aspects, enabling faster, more accurate, and risk-aware decision-making.
 
 ## Key Features
 - **OCR Processing**: Extracts text from both scanned and digital PDFs.  
@@ -19,7 +19,7 @@ The system uses **OCR** and an **AI ChatBot** framework to extract, classify, va
 ## Tech Stack
 - **Backend**: [FastAPI](https://fastapi.tiangolo.com/) (Python)  
 - **Frontend**: [Streamlit](https://streamlit.io/)  
-- **AI Chatbot**: [LangChain](https://www.langchain.com/), [LangGraph](https://www.langchain.com/langgraph)  
+- **AI Framework**: [LangChain](https://www.langchain.com/), [LangGraph](https://www.langchain.com/langgraph)  
 - **OCR**: [Docling](https://docling-project.github.io/docling/)  
 - **Data Processing**: pandas, regex, requests, BeautifulSoup4  
 
