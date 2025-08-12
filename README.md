@@ -23,6 +23,9 @@ The system uses **OCR** and **Natural Language Processing (NLP)** to extract, cl
 - **OCR**: [pytesseract](https://github.com/madmaze/pytesseract), [pdfplumber](https://github.com/jsvine/pdfplumber)  
 - **Data Processing**: pandas, regex, requests, BeautifulSoup4  
 
+## 🧭 Architecture 
+![Architecture photo](frontend/flow.png)
+
 ## 📂 Project Structure
 ```bash
 
